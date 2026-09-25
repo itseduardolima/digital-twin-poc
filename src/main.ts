@@ -4,6 +4,12 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
 import { buildRobot } from "./robot";
 import { setupDebugPanel } from "./debugPanel";
+import { DEFAULT_TOPIC } from "../shared/protocol.ts";
+import { connectTelemetry } from "./telemetry";
+import { Smoother } from "./smoothing";
+import { createHud } from "./hud";
+import type { Robot } from "./robot";
+import { JOINTS } from "./jointConfig";
 
 const MODEL_URL = "/models/scene.gltf";
 
@@ -51,6 +57,29 @@ function frameObject(obj: THREE.Object3D) {
   grid.position.y = floor.position.y = box.min.y;
 }
 
+let twin: Robot | null = null;
+const smoother = new Smoother(JOINTS.length);
+const MQTT_URL = import.meta.env.VITE_MQTT_URL ?? "ws://localhost:8083";
+const MQTT_TOPIC = import.meta.env.VITE_MQTT_TOPIC ?? DEFAULT_TOPIC;
+let hud: ReturnType<typeof createHud> | null = null;
+let hasData = false; // só move o robô depois da primeira mensagem MQTT
+
+function startTelemetry() {
+  hud = createHud({ url: MQTT_URL, topic: MQTT_TOPIC });
+  connectTelemetry({
+    url: MQTT_URL,
+    topic: MQTT_TOPIC,
+    onStatus: (s) => hud!.setStatus(s),
+    onJoints: (angles) => {
+      // Primeira leitura: vai direto à pose real, sem "voar" desde o zero.
+      if (!hasData) smoother.snap(angles);
+      else smoother.setTarget(angles);
+      hasData = true;
+      hud!.markMessage();
+    },
+  });
+}
+
 new GLTFLoader().load(
   MODEL_URL,
   (gltf) => {
@@ -62,10 +91,15 @@ new GLTFLoader().load(
     const rig = buildRobot(robot);
     scene.add(rig.root);
     frameObject(rig.root);
-    if (new URLSearchParams(location.search).has("debug")) {
+    const params = new URLSearchParams(location.search);
+    const debug = params.has("debug");
+    if (debug) {
       setupDebugPanel(rig, camera, renderer.domElement);
       (window as unknown as { rig: typeof rig }).rig = rig; // atalho para testar no console
     }
+    twin = rig;
+    // No modo debug os sliders controlam o robô; use ?debug&live para ligar o MQTT também.
+    if (!debug || params.has("live")) startTelemetry();
     status.textContent = "Modelo carregado";
   },
   (e) => {
@@ -83,7 +117,15 @@ window.addEventListener("resize", () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
+const clock = new THREE.Clock();
 renderer.setAnimationLoop(() => {
+  if (hud && twin) {
+    if (hasData) {
+      smoother.update(clock.getDelta());
+      JOINTS.forEach((j, i) => twin!.setAngle(j.id, smoother.current[i]));
+    }
+    hud.render(smoother.current);
+  }
   controls.update();
   renderer.render(scene, camera);
 });

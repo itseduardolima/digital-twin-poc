@@ -1,52 +1,54 @@
-﻿# Plano da PoC: Digital Twin KR120 (Three.js + MQTT)
+# Plano da PoC: Digital Twin KR120 (Three.js + MQTT)
 
-Cada fase termina com algo que se pode ver rodando. SÃ³ passamos para a prÃ³xima com aprovaÃ§Ã£o.
+Cada fase termina com algo que se pode ver rodando. Só passamos para a próxima com aprovação.
 
 ## Estado atual
-- [x] Pasta do projeto, dependÃªncias instaladas (three, mqtt, vite, typescript, tsx, aedes, ws)
+- [x] Pasta do projeto, dependências instaladas (three, mqtt, vite, typescript, tsx, aedes, ws)
 - [x] Modelo copiado para `public/models/`
-- [x] AnÃ¡lise da estrutura do modelo (ver `00-model-findings.md`)
-- [x] Fase 1 concluÃ­da: Vite + TS, cena, luzes, cÃ¢mera orbital, robÃ´ carregado (`src/main.ts`). Typecheck e build OK, confirmado no navegador (pose de zero mecÃ¢nico, como previsto)
-- [~] Fase 2 em andamento: cadeia A1-A6, config, painel debug e primeira classificaÃ§Ã£o prontos. Falta a revisÃ£o visual do usuÃ¡rio (sinais e malhas mal agrupadas)
-- [ ] Fases 3 a 5: nÃ£o iniciadas
+- [x] Análise da estrutura do modelo (ver `00-model-findings.md`)
+- [x] Fase 1 concluída: Vite + TS, cena, luzes, câmera orbital, robô carregado (`src/main.ts`). Typecheck e build OK, confirmado no navegador (pose de zero mecânico, como previsto)
+- [~] Fase 2 em andamento: cadeia A1-A6, config, painel debug e primeira classificação prontos. Falta a revisão visual do usuário (sinais e malhas mal agrupadas)
+- [x] Fase 3 concluída: broker aedes (tcp 1883, ws 8083) e simulador de CLP (`npm run broker` / `npm run plc`). Verificado por TCP e WebSocket
+- [x] Fase 4 concluída: `src/telemetry.ts`, `src/smoothing.ts`, `src/hud.ts`, `.env.example`. Verificado no navegador (online, offline, reconexão, sem dados). Em `?debug` o MQTT fica desligado; use `?debug&live`
+- [x] Fase 5 concluída: README com execução, contrato MQTT, mapeamento das juntas, limitações, notas de evolução e crédito CC-BY do modelo
 
 ## Fase 1: Esqueleto Vite + TS + cena
 - `index.html`, `vite.config.ts`, `tsconfig.json`, scripts do `package.json`
-- Cena, luzes, cÃ¢mera orbital, chÃ£o/grade
-- Carregar `scene.gltf` e enquadrar a cÃ¢mera
-- **Entrega:** abrir `npm run dev` e ver o robÃ´ parado.
+- Cena, luzes, câmera orbital, chão/grade
+- Carregar `scene.gltf` e enquadrar a câmera
+- **Entrega:** abrir `npm run dev` e ver o robô parado.
 
 ## Fase 2: Mapeamento das juntas
-- Tabela em `src/jointConfig.ts`: para cada A1..A6 â†’ pivÃ´, eixo, sinal, limites, lista de malhas.
-- Montar a cadeia cinemÃ¡tica em runtime (grupo por junta, aninhados) com `attach()`.
-- Modo debug `?debug`: colore por grupo, clique mostra o nome da malha, sliders A1..A6 para testar Ã  mÃ£o.
-- Iterar visualmente atÃ© cada junta girar certo.
-- **Entrega:** sliders movendo o robÃ´ de forma coerente.
+- Tabela em `src/jointConfig.ts`: para cada A1..A6 → pivô, eixo, sinal, limites, lista de malhas.
+- Montar a cadeia cinemática em runtime (grupo por junta, aninhados) com `attach()`.
+- Modo debug `?debug`: colore por grupo, clique mostra o nome da malha, sliders A1..A6 para testar à mão.
+- Iterar visualmente até cada junta girar certo.
+- **Entrega:** sliders movendo o robô de forma coerente.
 
 ## Fase 3: Simulador de CLP (Node)
 - Broker MQTT local (aedes, TCP + WebSocket) e script `simulator/plc.ts`.
-- Publica JSON periÃ³dico com A1..A6 interpolando entre poses.
+- Publica JSON periódico com A1..A6 interpolando entre poses.
 - **Entrega:** `mosquitto_sub`/log mostrando as mensagens.
 
-## Fase 4: IntegraÃ§Ã£o MQTT no navegador
-- `mqtt.js` via WebSocket, subscriÃ§Ã£o, parse e validaÃ§Ã£o do payload.
-- SuavizaÃ§Ã£o (damping independente de framerate).
-- HUD: estado da conexÃ£o, Ã¢ngulos, idade da Ãºltima mensagem, aviso de dados obsoletos.
-- Broker configurÃ¡vel por `.env` (local por padrÃ£o, HiveMQ pÃºblico opcional).
-- **Entrega:** simulador rodando e o robÃ´ no navegador se movendo.
+## Fase 4: Integração MQTT no navegador
+- `mqtt.js` via WebSocket, subscrição, parse e validação do payload.
+- Suavização (damping independente de framerate).
+- HUD: estado da conexão, ângulos, idade da última mensagem, aviso de dados obsoletos.
+- Broker configurável por `.env` (local por padrão, HiveMQ público opcional).
+- **Entrega:** simulador rodando e o robô no navegador se movendo.
 
-## Fase 5: Acabamento e documentaÃ§Ã£o
-- README com como rodar, contrato do tÃ³pico/payload, como remapear juntas.
-- Notas de evoluÃ§Ã£o para Sparkplug B / OPC UA / Node-RED.
+## Fase 5: Acabamento e documentação
+- README com como rodar, contrato do tópico/payload, como remapear juntas.
+- Notas de evolução para Sparkplug B / OPC UA / Node-RED.
 
-## DecisÃµes tomadas
+## Decisões tomadas
 - Frontend: Three.js puro + Vite + TypeScript
-- Broker padrÃ£o: local (aedes), HiveMQ pÃºblico opcional via `.env`
-- Mapeamento: semi-automÃ¡tico (proposta por geometria) + confirmaÃ§Ã£o no modo debug
-- Payload: JSON com Ã¢ngulos em graus, zero = pose do arquivo (zero mecÃ¢nico)
+- Broker padrão: local (aedes), HiveMQ público opcional via `.env`
+- Mapeamento: semi-automático (proposta por geometria) + confirmação no modo debug
+- Payload: JSON com ângulos em graus, zero = pose do arquivo (zero mecânico)
 
 ## Ainda em aberto (perguntar na fase correspondente)
 - Sentido positivo de cada junta e limites (Fase 2)
-- Nome do tÃ³pico (Fase 3)
+- (resolvido) Tópico: `conecthus/logix/cell1/kr120/joints`, payload `{a1..a6, ts}` em graus, ver `shared/protocol.ts`
 
 

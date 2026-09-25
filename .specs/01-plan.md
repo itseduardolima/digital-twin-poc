@@ -7,7 +7,8 @@ Cada fase termina com algo que se pode ver rodando. Só passamos para a próxima
 - [x] Modelo copiado para `public/models/`
 - [x] Análise da estrutura do modelo (ver `00-model-findings.md`)
 - [x] Fase 1 concluída: Vite + TS, cena, luzes, câmera orbital, robô carregado (`src/main.ts`). Typecheck e build OK, confirmado no navegador (pose de zero mecânico, como previsto)
-- [ ] Fase 2 em diante: não iniciadas
+- [~] Fase 2 em andamento: cadeia A1-A6, config, painel debug e primeira classificação prontos. Falta a revisão visual do usuário (sinais e malhas mal agrupadas)
+- [ ] Fases 3 a 5: não iniciadas
 
 ## Fase 1: Esqueleto Vite + TS + cena
 - `index.html`, `vite.config.ts`, `tsconfig.json`, scripts do `package.json`

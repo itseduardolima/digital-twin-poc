@@ -2,6 +2,9 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
+import { buildRobot } from "./robot";
+import { setupDebugPanel } from "./debugPanel";
+
 const MODEL_URL = "/models/scene.gltf";
 
 const container = document.getElementById("app")!;
@@ -56,7 +59,13 @@ new GLTFLoader().load(
       if ((o as THREE.Mesh).isMesh) o.castShadow = true;
     });
     scene.add(robot);
-    frameObject(robot);
+    const rig = buildRobot(robot);
+    scene.add(rig.root);
+    frameObject(rig.root);
+    if (new URLSearchParams(location.search).has("debug")) {
+      setupDebugPanel(rig, camera, renderer.domElement);
+      (window as unknown as { rig: typeof rig }).rig = rig; // atalho para testar no console
+    }
     status.textContent = "Modelo carregado";
   },
   (e) => {

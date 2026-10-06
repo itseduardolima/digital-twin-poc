@@ -5,6 +5,9 @@ import { buildWarehouse } from "./warehouse";
 import type { Warehouse } from "./warehouse";
 import { buildStation, runOrder, tick } from "./automation";
 import type { Station } from "./automation";
+import { connectOrders } from "./orders";
+import type { OrderMessage } from "../../shared/warehouse-protocol.ts";
+import type { LinkStatus } from "../telemetry.ts";
 import { createPanel } from "./panel";
 import { loadItems, loadLayout, saveItems, saveLayout, seedItems } from "./store";
 
@@ -34,15 +37,18 @@ let station: Station;
 let selected = -1;
 let busy = false;
 
-async function order(type: "store" | "retrieve", sku = "", qty = 0) {
-  if (busy || selected < 0) return;
-  const slot = warehouse.slots[selected];
-  const occupied = items.has(slot.address);
-  if (type === "store" && (occupied || !sku)) return panel.notify(occupied ? "Bolso já ocupado" : "Informe o SKU");
-  if (type === "retrieve" && !occupied) return panel.notify("Bolso vazio");
+const queue: OrderMessage[] = [];
+let linkStatus: LinkStatus = "connecting";
+let indexByAddress = new Map<string, number>();
+
+function renderLink() {
+  panel.setLink(`MQTT ${linkStatus} · fila ${queue.length}`);
+}
+
+async function execute(type: "store" | "retrieve", index: number, sku = "", qty = 0) {
   busy = true;
   panel.setBusy(true);
-  const index = selected;
+  const slot = warehouse.slots[index];
   await runOrder(station, warehouse, layout, items, { type, index });
   if (type === "store") items.set(slot.address, { sku, qty });
   else items.delete(slot.address);
@@ -51,6 +57,45 @@ async function order(type: "store" | "retrieve", sku = "", qty = 0) {
   busy = false;
   panel.setBusy(false);
   if (selected === index) panel.select(slot, items.get(slot.address));
+}
+
+async function order(type: "store" | "retrieve", sku = "", qty = 0) {
+  if (busy || selected < 0) return;
+  const occupied = items.has(warehouse.slots[selected].address);
+  if (type === "store" && (occupied || !sku)) return panel.notify(occupied ? "Bolso já ocupado" : "Informe o SKU");
+  if (type === "retrieve" && !occupied) return panel.notify("Bolso vazio");
+  await execute(type, selected, sku, qty);
+  next();
+}
+
+function next() {
+  while (!busy && queue.length) {
+    const o = queue.shift()!;
+    const index = indexByAddress.get(o.address);
+    const occupied = items.has(o.address);
+    const reason =
+      index === undefined
+        ? "unknown address"
+        : o.type === "store"
+          ? occupied
+            ? "occupied"
+            : !o.sku
+              ? "missing sku"
+              : ""
+          : occupied
+            ? ""
+            : "empty";
+    if (reason) {
+      link.publish(o.id, "rejected", reason);
+      continue;
+    }
+    link.publish(o.id, "running");
+    void execute(o.type, index!, o.sku, o.qty).then(() => {
+      link.publish(o.id, "done");
+      next();
+    });
+  }
+  renderLink();
 }
 
 const marker = new THREE.LineSegments(
@@ -94,6 +139,19 @@ function updateStatus() {
   document.getElementById("status")!.textContent = `${warehouse.slots.length} bolsos · ${items.size} ocupados`;
 }
 
+const link = connectOrders({
+  url: import.meta.env.VITE_MQTT_URL ?? "ws://localhost:8083",
+  onLink(s) {
+    linkStatus = s;
+    renderLink();
+  },
+  onOrder(o) {
+    queue.push(o);
+    link.publish(o.id, "queued");
+    next();
+  },
+});
+
 function disposeTree(o: THREE.Object3D) {
   o.traverse((c) => {
     const m = c as THREE.Mesh;
@@ -109,6 +167,7 @@ function build(keepCamera: boolean) {
   }
   warehouse = buildWarehouse(layout, new Set(items.keys()));
   scene.add(warehouse.root);
+  indexByAddress = new Map(warehouse.slots.map((s, i) => [s.address, i]));
   if (station) scene.remove(station.root);
   station = buildStation(layout);
   scene.add(station.root);
@@ -116,6 +175,7 @@ function build(keepCamera: boolean) {
   marker.visible = false;
   panel.select(null);
   updateStatus();
+  renderLink();
   if (keepCamera) return;
   const d = dims(layout);
   camera.position.set(d.length * 0.6, d.height * 1.1, d.length * 0.9 + 4);

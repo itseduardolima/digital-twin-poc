@@ -27,6 +27,26 @@ Comandos úteis: `npm run typecheck`, `npm run build`.
 - A HUD (canto inferior esquerdo) mostra `online`, a latência da última mensagem e os ângulos.
 - Parar o `plc` faz a HUD mostrar `sem dados` após 2 s. Parar o broker mostra `offline`, e o navegador reconecta sozinho.
 
+## Armazém de tapes (`/warehouse.html`)
+Segundo gêmeo digital: armazém procedural de carretéis SMD com shuttle e robô animados por pedidos de guarda e retirada.
+
+```bash
+npm run broker
+npm run wms      # simulador de SGE, ORDER_INTERVAL_S (padrão 25) segundos entre pedidos
+npm run dev      # http://localhost:5173/warehouse.html
+```
+
+Contrato em `shared/warehouse-protocol.ts`:
+
+| Tópico | Direção | Payload |
+|--------|---------|---------|
+| `conecthus/logix/wh1/orders` | SGE → gêmeo | `{id, type: "store"\|"retrieve", address, sku?, qty?}` |
+| `conecthus/logix/wh1/orders/<id>/status` | gêmeo → SGE | `{id, status: "queued"\|"running"\|"done"\|"rejected", reason?, ts}` |
+
+Endereço no formato `A-3-2-15-7` (lado, módulo, coluna, nível, bolso). Pedidos são executados em fila, um por vez. Pedido inválido (endereço inexistente, guarda em bolso ocupado, retirada de bolso vazio) recebe `rejected` com o motivo.
+
+O layout e o inventário ficam no `localStorage` do navegador. As dimensões padrão são estimativas (`src/warehouse/layout.ts`).
+
 ## Contrato MQTT
 Definido em `shared/protocol.ts`.
 

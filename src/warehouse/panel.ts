@@ -23,6 +23,7 @@ export function createPanel(h: Handlers) {
   el.style.cssText =
     "position:fixed;right:12px;top:12px;width:240px;padding:12px;background:#242a31;color:#cfd6dd;font:13px/1.5 system-ui,sans-serif;border-radius:6px";
   el.innerHTML = `
+    <div data-link style="margin-bottom:8px;color:#8a949e"></div>
     <b>Layout</b>
     ${FIELDS.map(([k, label]) => `<label style="display:flex;justify-content:space-between;margin-top:4px">${label}<input data-k="${k}" type="number" min="1" value="${h.layout[k]}" style="width:60px"></label>`).join("")}
     <button data-apply style="margin-top:8px;width:100%">Aplicar layout</button>
@@ -61,6 +62,9 @@ export function createPanel(h: Handlers) {
   q("[data-retrieve]").onclick = h.onRetrieve;
 
   return {
+    setLink(text: string) {
+      q("[data-link]").textContent = text;
+    },
     notify(text: string) {
       q("[data-msg]").textContent = text;
     },
